@@ -1,11 +1,13 @@
 import json
 import os
+import re
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import torch
 import uvicorn
+from difflib import SequenceMatcher
 
 # HuggingFace 토큰 환경변수 설정 (본인 토큰으로 교체)
 os.environ['HF_TOKEN'] = ""
@@ -55,7 +57,6 @@ class Query(BaseModel):
 def normalize_location(loc: str) -> str:
     loc = loc.replace(" ", "").lower()
 
-    # 축약어 사전: 키(축약형) -> 값(정규형)
     abbreviations = {
         "서울시": "서울특별시",
         "부산시": "부산광역시",
@@ -84,18 +85,13 @@ def normalize_location(loc: str) -> str:
     return loc
 
 def safe_concat_parts(sd: str, wiw: str, emd: str) -> str:
-    """
-    시도(sd), 시군구(wiw), 읍면동(emd)를 합칠 때 중복되는 접미사 제거 후 합치기
-    예: '경기도' + '도성남시중원구' -> '경기도성남시중원구'로 정리
-    """
     sd = sd or ""
     wiw = wiw or ""
     emd = emd or ""
 
-    # sd 끝 문자와 wiw 시작 문자가 같으면 wiw 첫 문자 제거
+    # 중복되는 접미사 제거 (필요시 더 정교화 가능)
     if sd and wiw and wiw.startswith(sd[-1]):
         wiw = wiw[1:]
-    # wiw 끝 문자와 emd 시작 문자가 같으면 emd 첫 문자 제거
     if wiw and emd and emd.startswith(wiw[-1]):
         emd = emd[1:]
 
@@ -104,7 +100,8 @@ def safe_concat_parts(sd: str, wiw: str, emd: str) -> str:
 def extract_location_from_question(question: str) -> str:
     prompt = (
         f"사용자의 입력: '{question}'\n"
-        "이 문장에서 사전투표소 검색에 필요한 행정지역명(시/군/구, 읍/면/동)을 한 줄로 추출해줘. 예: 성남시 중원구 금광2동\n"
+        "이 문장에서 사전투표소 검색에 필요한 행정지역명(시/군/구, 읍/면/동)을 띄어쓰기를 포함해 올바르게 한 줄로 추출해줘.\n"
+        "예: '성남시 수정구 산성동'\n"
         "답변:"
     )
     result = generator(prompt, max_new_tokens=32, do_sample=False)[0]["generated_text"]
@@ -112,27 +109,53 @@ def extract_location_from_question(question: str) -> str:
     answer_line = lines[-1]
     if "답변:" in answer_line:
         answer_line = answer_line.split("답변:")[-1].strip()
+
+    # 여러 공백을 하나로 정리, 특수문자 제거
+    answer_line = re.sub(r"\s+", " ", answer_line).strip()
+
     return answer_line
 
-def find_polling_place(location: str):
-    location = normalize_location(location)
-    results = []
+def normalize_text(text):
+    text = re.sub(r"\s+", "", text)  # 공백 제거
+    text = ''.join(e for e in text if e.isalnum())  # 특수문자 제거
+    return text.lower()
+
+def similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
+
+def find_polling_place(location: str, min_threshold: float = 0.8):
+    location_norm = normalize_text(location)
+    best_match = None
+    best_score = 0
+
     for place in polling_places:
-        sd = place.get('sdName', '').replace(" ", "").lower()
-        wiw = place.get('wiwName', '').replace(" ", "").lower()
-        emd = place.get('emdName', '').replace(" ", "").lower()
+        sd = place.get('sdName', '')
+        wiw = place.get('wiwName', '')
+        emd = place.get('emdName', '')
 
-        combined_full = normalize_location(safe_concat_parts(sd, wiw, emd))
-        combined_partial1 = normalize_location(safe_concat_parts(sd, '', emd))
-        combined_partial2 = normalize_location(safe_concat_parts('', wiw, emd))
+        candidates = [
+            normalize_text(f"{sd} {wiw} {emd}"),
+            normalize_text(f"{sd} {emd}"),
+            normalize_text(f"{wiw} {emd}"),
+            normalize_text(sd),
+            normalize_text(emd),
+        ]
 
-        print(f"Checking: '{combined_full}', '{combined_partial1}', '{combined_partial2}' against '{location}'")
+        for candidate in candidates:
+            sim = similarity(location_norm, candidate)
+            print(f"Comparing '{location_norm}' vs '{candidate}' => Similarity: {sim:.2f}")
 
-        if location in combined_full or location in combined_partial1 or location in combined_partial2:
-            results.append(place)
-    return results
+            if sim > best_score and sim >= min_threshold:
+                best_score = sim
+                best_match = place
 
-def generate_answer(place: dict, user_question: str):
+    if best_match:
+        return [best_match]
+    else:
+        return []
+
+
+def generate_answer(place: dict, user_question: str, location_extracted: str):
     place_info = (
         f"주소: {place.get('addr', '정보 없음')}\n"
         f"장소명: {place.get('placeName', '정보 없음')}\n"
@@ -140,6 +163,7 @@ def generate_answer(place: dict, user_question: str):
     )
     prompt = (
         f"사용자의 질문: '{user_question}'\n"
+        f"추출된 위치명: '{location_extracted}'\n"
         f"다음은 해당 지역의 사전투표소 정보입니다:\n"
         f"{place_info}\n"
         "위 정보를 기반으로 자연스럽고 친절한 응답 문장을 생성해주세요.\n답변:"
@@ -154,12 +178,18 @@ def generate_answer(place: dict, user_question: str):
 @app.post("/api/ask")
 async def ask_polling_place(query: Query):
     location = extract_location_from_question(query.question)
-    print(f"추출된 위치명: '{location}'")  # 디버깅용 출력
+    print(f"[사용자 질문] {query.question}")
+    print(f"[추출된 위치명] '{location}'")
+
+    if not location:
+        return {"answer": "죄송합니다. 정확한 지역 정보를 추출할 수 없었습니다. 시/군/구와 읍/면/동을 포함해 다시 말씀해 주세요."}
+
     matched_places = find_polling_place(location)
     if not matched_places:
         return {"answer": f"죄송합니다, '{location}' 지역의 사전투표소 정보를 찾을 수 없습니다."}
+
     place = matched_places[0]
-    answer = generate_answer(place, query.question)
+    answer = generate_answer(place, query.question, location)
     return {"answer": answer}
 
 @app.get("/")
@@ -168,6 +198,5 @@ async def root():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
 
 
