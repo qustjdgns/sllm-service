@@ -2,67 +2,129 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>🗳️ 사전투표소 안내 챗봇</title>
+  <title>사전투표소 안내 챗봇</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Noto Sans KR', sans-serif;
+      background-color: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 60px 20px;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 900px;
+      background-color: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      color: #2c3e50;
+      margin-bottom: 30px;
+    }
+
     #chatbox {
-      border: 1px solid #ccc;
-      padding: 10px;
-      height: 350px;
+      height: 500px;
       overflow-y: auto;
-      background: #f9f9f9;
-      margin-bottom: 10px;
-      border-radius: 5px;
-      white-space: pre-wrap;
+      border: 1px solid #dcdde1;
+      padding: 30px;
+      border-radius: 12px;
+      background-color: #fbfbfb;
+      font-size: 1.15rem;
+      margin-bottom: 30px;
     }
+
+    .message {
+      margin-bottom: 25px;
+      line-height: 1.8;
+    }
+
+    .message.user {
+      text-align: right;
+      color: #1a237e;
+      font-weight: 500;
+    }
+
+    .message.bot {
+      text-align: left;
+      color: #00695c;
+    }
+
+    .input-area {
+      display: flex;
+      gap: 20px;
+    }
+
     input[type="text"] {
-      width: 80%;
-      padding: 10px;
-      font-size: 1rem;
+      flex-grow: 1;
+      padding: 20px;
+      font-size: 1.2rem;
       border: 1px solid #ccc;
-      border-radius: 4px;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.3s;
     }
+
+    input[type="text"]:focus {
+      border-color: #009688;
+    }
+
     button {
-      padding: 10px 16px;
-      font-size: 1rem;
-      border: none;
-      background-color: #4caf50;
+      padding: 18px 28px;
+      font-size: 1.2rem;
+      background-color: #009688;
       color: white;
-      border-radius: 4px;
+      border: none;
+      border-radius: 10px;
       cursor: pointer;
-      margin-left: 8px;
+      transition: background-color 0.3s;
     }
+
     button:disabled {
-      background-color: #9e9e9e;
-      cursor: default;
+      background-color: #b2dfdb;
+      cursor: not-allowed;
     }
-    .user {
-      font-weight: bold;
-      color: #2a52be;
-      margin-top: 12px;
-    }
-    .bot {
-      margin-left: 10px;
-      color: #2e7d32;
-      margin-top: 6px;
-      white-space: pre-wrap;
+
+    @media (max-width: 768px) {
+      .chat-container {
+        padding: 20px;
+      }
+
+      input[type="text"], button {
+        font-size: 1rem;
+      }
     }
   </style>
 </head>
 <body>
-  <h2>🗳️ 사전투표소 안내 챗봇</h2>
-  <div id="chatbox"></div>
-  <input type="text" id="userInput" placeholder="예: 중원구 금광2동" autocomplete="off" />
-  <button id="sendBtn">보내기</button>
+  <div class="chat-container">
+    <h1>사전투표소 안내 챗봇</h1>
+    <div id="chatbox"></div>
+    <div class="input-area">
+      <input type="text" id="userInput" placeholder="예: 중원구 금광2동" autocomplete="off" />
+      <button id="sendBtn">보내기</button>
+    </div>
+  </div>
 
   <script>
     const chatbox = document.getElementById("chatbox");
     const userInput = document.getElementById("userInput");
     const sendBtn = document.getElementById("sendBtn");
 
-    function appendMessage(text, cls) {
+    function appendMessage(text, sender) {
       const div = document.createElement("div");
-      div.className = cls;
+      div.className = "message " + sender;
       div.innerText = text;
       chatbox.appendChild(div);
       chatbox.scrollTop = chatbox.scrollHeight;
@@ -72,7 +134,7 @@
       const input = userInput.value.trim();
       if (!input) return;
 
-      appendMessage("👤 나: " + input, "user");
+      appendMessage(input, "user");
       sendBtn.disabled = true;
       userInput.disabled = true;
 
@@ -82,18 +144,20 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ question: input })
         });
+
         if (!response.ok) {
-          appendMessage("⚠️ 서버 오류: " + response.status, "bot");
+          appendMessage("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "bot");
           throw new Error("HTTP status " + response.status);
         }
+
         const data = await response.json();
         if (data.answer) {
-          appendMessage("🤖 챗봇: " + data.answer, "bot");
+          appendMessage(data.answer, "bot");
         } else {
-          appendMessage("🤖 챗봇: 죄송합니다, 답변을 받을 수 없습니다.", "bot");
+          appendMessage("죄송합니다. 해당 지역 정보를 찾을 수 없습니다.", "bot");
         }
       } catch (err) {
-        appendMessage("⚠️ 통신 오류가 발생했습니다.", "bot");
+        appendMessage("통신 오류가 발생했습니다. 인터넷 연결을 확인해주세요.", "bot");
         console.error(err);
       } finally {
         sendBtn.disabled = false;
@@ -112,3 +176,4 @@
   </script>
 </body>
 </html>
+
