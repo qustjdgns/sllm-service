@@ -2,177 +2,287 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>사전투표소 안내 챗봇</title>
+  <title>투표소 안내 챗봇</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    /* Reset & 기본 설정 */
     * {
       box-sizing: border-box;
+      margin: 0; padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
-
     body {
-      margin: 0;
-      font-family: 'Noto Sans KR', sans-serif;
-      background-color: #f0f2f5;
+      background: #f9fafb;
+      color: #333;
       display: flex;
       justify-content: center;
-      align-items: flex-start;
-      padding: 60px 20px;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
     }
-
-    .chat-container {
+    #container {
+      max-width: 900px;  /* 크게 */
       width: 100%;
-      max-width: 900px;
-      background-color: #ffffff;
-      border-radius: 16px;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
-      padding: 40px;
-    }
-
-    h1 {
-      text-align: center;
-      font-size: 2rem;
-      color: #2c3e50;
-      margin-bottom: 30px;
-    }
-
-    #chatbox {
-      height: 500px;
-      overflow-y: auto;
-      border: 1px solid #dcdde1;
-      padding: 30px;
+      background: #fff;
+      box-shadow: 0 4px 20px rgb(0 0 0 / 0.1);
       border-radius: 12px;
-      background-color: #fbfbfb;
-      font-size: 1.15rem;
-      margin-bottom: 30px;
-    }
-
-    .message {
-      margin-bottom: 25px;
-      line-height: 1.8;
-    }
-
-    .message.user {
-      text-align: right;
-      color: #1a237e;
-      font-weight: 500;
-    }
-
-    .message.bot {
-      text-align: left;
-      color: #00695c;
-    }
-
-    .input-area {
       display: flex;
-      gap: 20px;
+      flex-direction: column;
+      overflow: hidden;
+      height: 90vh; /* 화면 거의 꽉 차도록 */
     }
-
-    input[type="text"] {
-      flex-grow: 1;
-      padding: 20px;
-      font-size: 1.2rem;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      outline: none;
-      transition: border-color 0.3s;
-    }
-
-    input[type="text"]:focus {
-      border-color: #009688;
-    }
-
-    button {
-      padding: 18px 28px;
-      font-size: 1.2rem;
-      background-color: #009688;
+    header {
+      background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
       color: white;
+      padding: 1.25rem 1.5rem;
+      font-size: 1.8rem;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 1px;
+      user-select: none;
+    }
+
+    /* 안내 문구 */
+    #infoText {
+      padding: 1rem 2rem;
+      font-size: 1.15rem;
+      color: #444;
+      background: #e7f0fd;
+      border-bottom: 1px solid #d0e5fc;
+      font-weight: 600;
+    }
+
+    /* 채팅 영역 */
+    #chat {
+      flex-grow: 1;
+      padding: 2rem;
+      overflow-y: auto;
+      background: #e7f0fd;
+      scrollbar-width: thin;
+      scrollbar-color: #4facfe #d0e5fc;
+      border-bottom: 1px solid #d0e5fc;
+      min-height: 500px;  /* 더 넓고 길게 */
+    }
+    #chat::-webkit-scrollbar {
+      width: 8px;
+    }
+    #chat::-webkit-scrollbar-thumb {
+      background-color: #4facfe;
+      border-radius: 4px;
+    }
+    .message {
+      max-width: 80%;
+      padding: 1rem 1.5rem;
+      margin-bottom: 1.25rem;
+      border-radius: 24px;
+      line-height: 1.5;
+      font-size: 1.2rem;
+      word-wrap: break-word;
+      box-shadow: 0 1px 4px rgb(0 0 0 / 0.1);
+      transition: background-color 0.3s ease;
+    }
+    .user {
+      background: #d1e7dd;
+      align-self: flex-end;
+      border-bottom-right-radius: 6px;
+      color: #0f5132;
+      font-weight: 600;
+      animation: fadeInRight 0.4s ease forwards;
+    }
+    .bot {
+      background: #fff;
+      align-self: flex-start;
+      border-bottom-left-radius: 6px;
+      color: #1a1a1a;
+      font-weight: 500;
+      animation: fadeInLeft 0.4s ease forwards;
+    }
+
+    /* 입력 영역 */
+    #controls {
+      display: flex;
+      gap: 1rem;
+      padding: 1.5rem 2rem;
+      background: #fff;
+      border-top: 1px solid #d0e5fc;
+    }
+    #userInput {
+      flex-grow: 1;
+      height: 80px; /* 아주 큼 */
+      padding: 0 2rem;
+      font-size: 1.4rem;
+      border: 2.5px solid #4facfe;
+      border-radius: 40px;
+      outline-offset: 2px;
+      transition: border-color 0.3s ease;
+    }
+    #userInput:focus {
+      border-color: #00f2fe;
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.7);
+    }
+    button {
+      flex: 0 0 180px;
+      height: 80px;
+      background: #4facfe;
       border: none;
-      border-radius: 10px;
+      border-radius: 40px;
+      color: white;
+      font-weight: 700;
+      font-size: 1.25rem;
       cursor: pointer;
-      transition: background-color 0.3s;
+      transition: background-color 0.3s ease, transform 0.15s ease;
+      box-shadow: 0 5px 16px rgb(79 172 254 / 0.5);
+      user-select: none;
     }
-
+    button:hover:not(:disabled) {
+      background: #00f2fe;
+      box-shadow: 0 7px 18px rgb(0 242 254 / 0.7);
+      transform: translateY(-2px);
+    }
     button:disabled {
-      background-color: #b2dfdb;
+      background: #a0cfff;
       cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
     }
 
-    @media (max-width: 768px) {
-      .chat-container {
-        padding: 20px;
+    /* 애니메이션 */
+    @keyframes fadeInRight {
+      from {
+        opacity: 0;
+        transform: translateX(20px);
       }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    @keyframes fadeInLeft {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
 
-      input[type="text"], button {
-        font-size: 1rem;
+    /* 반응형 */
+    @media (max-width: 768px) {
+      #container {
+        max-width: 100%;
+        border-radius: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      #chat {
+        padding: 1.5rem;
+        font-size: 1.1rem;
+        min-height: 400px;
+      }
+      button {
+        flex: 1;
+        height: 70px;
+        font-size: 1.1rem;
+      }
+      #userInput {
+        height: 70px;
+        font-size: 1.2rem;
+        padding: 0 1.2rem;
+      }
+      #controls {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
       }
     }
   </style>
 </head>
 <body>
-  <div class="chat-container">
-    <h1>사전투표소 안내 챗봇</h1>
-    <div id="chatbox"></div>
-    <div class="input-area">
-      <input type="text" id="userInput" placeholder="예: 중원구 금광2동" autocomplete="off" />
-      <button id="sendBtn">보내기</button>
+  <div id="container" role="main" aria-label="투표소 안내 챗봇">
+    <header>📍 투표소 안내 챗봇</header>
+
+    <div id="infoText" role="region" aria-live="polite" aria-atomic="true">
+      사전투표소 시간 안내: 5월 29일(목) ~ 5월 30일(금) 매일 06시 ~ 18시<br>
+      본투표 시간 안내 : 6월 3일(화) 06시 ~ 20시 / (본투표는 본인 거주지 투표소에서 투표)<br>
+      사전 준비물 : 신분증
+    </div>
+
+    <div id="chat" aria-live="polite" aria-label="채팅 메시지"></div>
+
+    <div id="controls" role="region" aria-label="메시지 입력 및 투표소 조회 버튼">
+      <input
+        type="text"
+        id="userInput"
+        placeholder="주소를 입력하세요 (예: OO구 OO동)"
+        autocomplete="off"
+        aria-describedby="inputHelp"
+      />
+      <button id="btnEarly" aria-label="사전투표소 조회">사전투표소 조회</button>
+      <button id="btnRegular" aria-label="투표소 조회">투표소 조회</button>
     </div>
   </div>
 
   <script>
-    const chatbox = document.getElementById("chatbox");
+    const chat = document.getElementById("chat");
     const userInput = document.getElementById("userInput");
-    const sendBtn = document.getElementById("sendBtn");
+    const btnEarly = document.getElementById("btnEarly");
+    const btnRegular = document.getElementById("btnRegular");
 
     function appendMessage(text, sender) {
       const div = document.createElement("div");
-      div.className = "message " + sender;
-      div.innerText = text;
-      chatbox.appendChild(div);
-      chatbox.scrollTop = chatbox.scrollHeight;
+      div.classList.add("message", sender);
+      div.textContent = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
     }
 
-    async function sendMessage() {
+    async function sendMessage(voteType) {
       const input = userInput.value.trim();
       if (!input) return;
 
       appendMessage(input, "user");
-      sendBtn.disabled = true;
       userInput.disabled = true;
+      btnEarly.disabled = true;
+      btnRegular.disabled = true;
 
       try {
         const response = await fetch("http://localhost:8000/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: input })
+          body: JSON.stringify({ question: input, vote_type: voteType }),
         });
 
         if (!response.ok) {
-          appendMessage("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "bot");
-          throw new Error("HTTP status " + response.status);
+          appendMessage("서버 오류가 발생했습니다.", "bot");
+          return;
         }
 
         const data = await response.json();
-        if (data.answer) {
-          appendMessage(data.answer, "bot");
-        } else {
-          appendMessage("죄송합니다. 해당 지역 정보를 찾을 수 없습니다.", "bot");
-        }
+        appendMessage(data.answer || "정보를 찾을 수 없습니다.", "bot");
       } catch (err) {
-        appendMessage("통신 오류가 발생했습니다. 인터넷 연결을 확인해주세요.", "bot");
+        appendMessage("서버 오류 또는 네트워크 오류입니다.", "bot");
         console.error(err);
       } finally {
-        sendBtn.disabled = false;
         userInput.disabled = false;
+        btnEarly.disabled = false;
+        btnRegular.disabled = false;
         userInput.value = "";
         userInput.focus();
       }
     }
 
-    sendBtn.addEventListener("click", sendMessage);
-    userInput.addEventListener("keydown", e => {
-      if (e.key === "Enter") sendMessage();
-    });
+    btnEarly.addEventListener("click", () => sendMessage("early"));
+    btnRegular.addEventListener("click", () => sendMessage("regular"));
 
-    window.onload = () => userInput.focus();
+    userInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        // 엔터 누르면 본투표 조회 실행 (원한다면 early로 바꿀 수도)
+        sendMessage("regular");
+      }
+    });
   </script>
 </body>
 </html>
